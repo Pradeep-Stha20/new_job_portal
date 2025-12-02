@@ -355,15 +355,19 @@ function submitApplication(event) {
         processData: false,
         dataType: 'json',
         success: function(response) {
-            console.log('Response:', response);
+            console.log('✅ AJAX Success! Response:', response);
             if (response.status) {
+                console.log('✅ Application submitted successfully!');
                 applicationModal.hide();
+                console.log('Calling showSuccessNotification...');
                 showSuccessNotification('Application Submitted Successfully!', 'Your application has been submitted. The employer will review it shortly.');
                 
                 setTimeout(function() {
+                    console.log('Redirecting after 2 seconds...');
                     window.location.href = "{{ url()->current() }}";
                 }, 2000);
             } else {
+                console.log('❌ Application submission failed. Response:', response);
                 // Show validation errors
                 if (response.errors) {
                     if (response.errors.cover_letter) {
@@ -374,6 +378,7 @@ function submitApplication(event) {
                     }
                 }
                 if (response.message) {
+                    console.log('Showing error notification:', response.message);
                     showErrorNotification('Application Error', response.message);
                 }
                 
@@ -383,7 +388,7 @@ function submitApplication(event) {
             }
         },
         error: function(xhr, status, error) {
-            console.error('AJAX Error:', status, error);
+            console.error('❌ AJAX Error!', status, error);
             console.error('Response:', xhr.responseText);
             
             let errorMessage = 'Please try again.';
@@ -395,6 +400,7 @@ function submitApplication(event) {
                 errorMessage = 'Validation failed. Please check your inputs.';
             }
             
+            console.log('Showing error notification:', errorMessage);
             showErrorNotification('Submission Error', errorMessage);
             
             // Reset button
