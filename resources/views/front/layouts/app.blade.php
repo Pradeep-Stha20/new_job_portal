@@ -119,6 +119,84 @@
 			}
 		});
 	});
+
+	// Global Notification Functions
+	function showSuccessNotification(title, message) {
+		const notificationHtml = `
+			<div class="notification-container notification-success animated slideInDown">
+				<div class="notification-header">
+					<i class="fa fa-check-circle"></i>
+					<h5>${title}</h5>
+					<button type="button" class="btn-close" onclick="closeNotification(this)"></button>
+				</div>
+				<div class="notification-body">
+					<p>${message}</p>
+				</div>
+				<div class="notification-progress"></div>
+			</div>
+		`;
+		
+		$('body').append(notificationHtml);
+		
+		// Auto-close after 4 seconds
+		setTimeout(function() {
+			closeNotification($('.notification-container:last').find('.btn-close'));
+		}, 4000);
+	}
+
+	function showErrorNotification(title, message) {
+		const notificationHtml = `
+			<div class="notification-container notification-error animated slideInDown">
+				<div class="notification-header">
+					<i class="fa fa-exclamation-circle"></i>
+					<h5>${title}</h5>
+					<button type="button" class="btn-close" onclick="closeNotification(this)"></button>
+				</div>
+				<div class="notification-body">
+					<p>${message}</p>
+				</div>
+				<div class="notification-progress"></div>
+			</div>
+		`;
+		
+		$('body').append(notificationHtml);
+		
+		// Auto-close after 5 seconds
+		setTimeout(function() {
+			closeNotification($('.notification-container:last').find('.btn-close'));
+		}, 5000);
+	}
+
+	function showWarningNotification(title, message) {
+		const notificationHtml = `
+			<div class="notification-container notification-warning animated slideInDown">
+				<div class="notification-header">
+					<i class="fa fa-exclamation-triangle"></i>
+					<h5>${title}</h5>
+					<button type="button" class="btn-close" onclick="closeNotification(this)"></button>
+				</div>
+				<div class="notification-body">
+					<p>${message}</p>
+				</div>
+				<div class="notification-progress"></div>
+			</div>
+		`;
+		
+		$('body').append(notificationHtml);
+		
+		// Auto-close after 4 seconds
+		setTimeout(function() {
+			closeNotification($('.notification-container:last').find('.btn-close'));
+		}, 4000);
+	}
+
+	function closeNotification(btn) {
+		const notification = $(btn).closest('.notification-container');
+		notification.removeClass('slideInDown').addClass('slideOutUp');
+		setTimeout(function() {
+			notification.remove();
+		}, 500);
+	}
 </script>
 
 @yield('customJs')
