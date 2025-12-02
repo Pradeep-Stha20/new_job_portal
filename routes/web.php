@@ -30,6 +30,12 @@ Route::get('/jobs/detail/{id}',[JobsController::class,'detail'])->name('jobDetai
 Route::post('/apply-job',[JobsController::class,'applyJob'])->name('applyJob');
 Route::post('/save-job',[JobsController::class,'saveJob'])->name('saveJob');
 
+// Job matching and recommendations (authenticated)
+Route::middleware('auth')->group(function() {
+    Route::get('/jobs/matched', [JobsController::class, 'getMatchedJobs'])->name('jobs.matched');
+    Route::get('/jobs/{jobId}/match-score', [JobsController::class, 'getJobMatchScore'])->name('jobs.matchScore');
+});
+
 Route::get('/forgot-password',[AccountController::class,'forgotPassword'])->name('account.forgotPassword');
 Route::post('/process-forgot-password',[AccountController::class,'processForgotPassword'])->name('account.processForgotPassword');
 Route::get('/reset-password/{token}',[AccountController::class,'resetPassword'])->name('account.resetPassword');
@@ -78,7 +84,32 @@ Route::group(['prefix' => 'account'], function(){
         Route::get('/saved-jobs',[AccountController::class,'savedJobs'])->name('account.savedJobs');  
         Route::post('/remove-saved-job',[AccountController::class,'removeSavedJob'])->name('account.removeSavedJob');   
         Route::post('/update-password',[AccountController::class,'updatePassword'])->name('account.updatePassword');   
-
+        Route::get('/job/{jobId}/applicants',[AccountController::class,'jobApplicants'])->name('account.jobApplicants');   
+        Route::post('/applicant/{applicationId}/approve',[AccountController::class,'approveApplication'])->name('account.approveApplication');   
+        Route::post('/applicant/{applicationId}/reject',[AccountController::class,'rejectApplication'])->name('account.rejectApplication');   
+        
+        // Fraud detection and ranking endpoints
+        Route::get('/applicant/{applicationId}/fraud-report', [AccountController::class, 'getFraudReport'])->name('account.fraudReport');
+        Route::get('/applicant/{applicationId}/fit-score', [AccountController::class, 'getApplicantFitScore'])->name('account.fitScore');
+        Route::get('/job/{jobId}/ranked-applicants', [AccountController::class, 'getRankedApplicants'])->name('account.rankedApplicants');
     });
 
+});
+
+// API routes for AJAX calls (with auth middleware for session)
+Route::middleware('auth')->prefix('api')->group(function() {
+    Route::get('/applications/{id}', function($id) {
+        $application = \App\Models\JobApplication::with(['user', 'job'])->find($id);
+        
+        if (!$application) {
+            return response()->json(['error' => 'Application not found'], 404);
+        }
+        
+        // Check if user owns the job
+        if ($application->job->user_id != auth()->id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+        
+        return response()->json($application);
+    });
 });

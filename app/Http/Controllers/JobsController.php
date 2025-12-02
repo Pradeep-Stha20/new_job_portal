@@ -9,6 +9,8 @@ use App\Models\JobApplication;
 use App\Models\JobType;
 use App\Models\SavedJob;
 use App\Models\User;
+use App\Services\JobMatchingService;
+use App\Services\FraudDetectionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Mail;
@@ -16,6 +18,15 @@ use Illuminate\Support\Facades\Validator;
 
 class JobsController extends Controller
 {
+    protected $matchingService;
+    protected $fraudService;
+
+    public function __construct(JobMatchingService $matchingService, FraudDetectionService $fraudService)
+    {
+        $this->matchingService = $matchingService;
+        $this->fraudService = $fraudService;
+    }
+
     // This method will show jobs page
     public function index(Request $request) {
         $categories = Category::where('status',1)->get();
@@ -117,10 +128,40 @@ class JobsController extends Controller
         ]);
 
         if ($validator->fails()) {
+            $errors = [];
+            $errorMessages = $validator->errors()->toArray();
+            
+            // Format error messages for better UX
+            if (isset($errorMessages['cover_letter'])) {
+                foreach ($errorMessages['cover_letter'] as $msg) {
+                    if (strpos($msg, 'required') !== false) {
+                        $errors['cover_letter'] = ['Cover letter is required'];
+                    } elseif (strpos($msg, 'min') !== false) {
+                        $errors['cover_letter'] = ['Cover letter must be at least 20 characters long'];
+                    } elseif (strpos($msg, 'max') !== false) {
+                        $errors['cover_letter'] = ['Cover letter cannot exceed 2000 characters'];
+                    }
+                }
+            }
+            
+            if (isset($errorMessages['cv'])) {
+                foreach ($errorMessages['cv'] as $msg) {
+                    if (strpos($msg, 'required') !== false) {
+                        $errors['cv'] = ['Please upload your CV'];
+                    } elseif (strpos($msg, 'mimes') !== false) {
+                        $errors['cv'] = ['Only PDF, DOC, and DOCX files are accepted'];
+                    } elseif (strpos($msg, 'max') !== false) {
+                        $errors['cv'] = ['CV file size cannot exceed 2MB'];
+                    } elseif (strpos($msg, 'file') !== false) {
+                        $errors['cv'] = ['Please select a valid file'];
+                    }
+                }
+            }
+            
             return response()->json([
                 'status' => false,
-                'errors' => $validator->errors(),
-                'message' => 'Validation failed. Please check your cover letter and CV.'
+                'errors' => $errors ?: $errorMessages,
+                'message' => 'Please fix the errors below and try again.'
             ]);
         }
 
@@ -178,6 +219,11 @@ class JobsController extends Controller
         $application->cv = $cvPath;
         $application->save();
 
+        // Calculate and save fit score
+        $this->matchingService->saveFitScore($application);
+
+        // Run fraud detection and save fraud score
+        $this->fraudService->saveFraudScore($application);
 
         // Send Notification Email to Employer
         $employer = User::where('id',$employer_id)->first();
@@ -197,6 +243,63 @@ class JobsController extends Controller
         return response()->json([
             'status' => true,
             'message' => $message
+        ]);
+    }
+
+    /**
+     * Get matched jobs for current user
+     * Returns jobs sorted by fit score (highest match first)
+     */
+    public function getMatchedJobs(Request $request)
+    {
+        if (!Auth::check()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Please login to see matched jobs'
+            ]);
+        }
+
+        $limit = $request->input('limit', 10);
+        $user = Auth::user();
+
+        $matchedJobs = $this->matchingService->getMatchedJobs($user, $limit);
+
+        return response()->json([
+            'status' => true,
+            'data' => $matchedJobs
+        ]);
+    }
+
+    /**
+     * API endpoint to get job match score for a specific user and job
+     */
+    public function getJobMatchScore($jobId)
+    {
+        if (!Auth::check()) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Please login'
+            ], 401);
+        }
+
+        $job = Job::find($jobId);
+        if (!$job) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Job not found'
+            ], 404);
+        }
+
+        $user = Auth::user();
+        $fitScore = $this->matchingService->calculateJobMatchScore($user, $job);
+
+        return response()->json([
+            'status' => true,
+            'data' => [
+                'job_id' => $jobId,
+                'fit_score' => $fitScore,
+                'match_percentage' => round($fitScore, 2) . '%'
+            ]
         ]);
     }
 

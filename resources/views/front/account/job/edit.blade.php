@@ -66,10 +66,27 @@
 
                             <div class="row">
                                 <div class="mb-4 col-md-6">
-                                    <label for="" class="mb-2">Salary</label>
-                                    <input value="{{ $job->salary }}" type="text" placeholder="Salary" id="salary" name="salary" class="form-control">
+                                    <label for="" class="mb-2">Salary Range (NPR)</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">NPR</span>
+                                        <input value="{{ $job->salary_min }}" type="number" placeholder="Min Salary" id="salary_min" name="salary_min" class="form-control">
+                                        <span class="input-group-text">-</span>
+                                        <input value="{{ $job->salary_max }}" type="number" placeholder="Max Salary" id="salary_max" name="salary_max" class="form-control">
+                                    </div>
                                 </div>
 
+                                <div class="mb-4 col-md-6">
+                                    <label for="" class="mb-2">&nbsp;</label>
+                                    <div class="form-check mt-2">
+                                        <input class="form-check-input" type="checkbox" id="salary_negotiable" name="salary_negotiable" value="1" {{ ($job->salary_negotiable == 1) ? 'checked' : '' }}>
+                                        <label class="form-check-label" for="salary_negotiable">
+                                            Salary Negotiable
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
                                 <div class="mb-4 col-md-6">
                                     <label for="" class="mb-2">Location<span class="req">*</span></label>
                                     <input value="{{ $job->location }}" type="text" placeholder="Location" id="location" name="location" class="form-control">

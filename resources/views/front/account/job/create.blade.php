@@ -66,8 +66,17 @@
 
                             <div class="row">
                                 <div class="mb-4 col-md-6">
-                                    <label for="" class="mb-2">Salary</label>
-                                    <input type="text" placeholder="Salary" id="salary" name="salary" class="form-control">
+                                    <label for="" class="mb-2">Salary Range</label>
+                                    <div class="input-group">
+                                        <span class="input-group-text">NPR</span>
+                                        <input value="" type="number" placeholder="Min Salary" id="salary_min" name="salary_min" class="form-control">
+                                        <span class="input-group-text">-</span>
+                                        <input value="" type="number" placeholder="Max Salary" id="salary_max" name="salary_max" class="form-control">
+                                    </div>
+                                    <div class="form-check mt-2">
+                                        <input type="checkbox" name="salary_negotiable" value="1" id="salary_negotiable" class="form-check-input">
+                                        <label class="form-check-label" for="salary_negotiable">Salary Negotiable</label>
+                                    </div>
                                 </div>
 
                                 <div class="mb-4 col-md-6">

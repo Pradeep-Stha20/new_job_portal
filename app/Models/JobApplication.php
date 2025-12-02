@@ -15,7 +15,10 @@ class JobApplication extends Model
         'employer_id',
         'applied_date',
         'cover_letter',
-        'cv'
+        'cv',
+        'status',
+        'fit_score',
+        'fraud_score'
     ];
 
     public function job() {

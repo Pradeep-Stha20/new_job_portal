@@ -9,6 +9,8 @@ use App\Models\JobApplication;
 use App\Models\JobType;
 use App\Models\SavedJob;
 use App\Models\User;
+use App\Services\JobMatchingService;
+use App\Services\FraudDetectionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\File;
@@ -21,6 +23,15 @@ use Illuminate\Support\Str;
 
 class AccountController extends Controller
 {
+    protected $matchingService;
+    protected $fraudService;
+
+    public function __construct(JobMatchingService $matchingService, FraudDetectionService $fraudService)
+    {
+        $this->matchingService = $matchingService;
+        $this->fraudService = $fraudService;
+    }
+
     // This method will show user registration page
     public function registration() {
         return view('front.account.registration');
@@ -204,8 +215,10 @@ class AccountController extends Controller
             'vacancy' => 'required|integer',
             'location' => 'required|max:50',
             'description' => 'required',
-            'company_name' => 'required|min:3|max:75',          
-
+            'company_name' => 'required|min:3|max:75',
+            'salary_min' => 'nullable|numeric|min:0',
+            'salary_max' => 'nullable|numeric|min:0',
+            'salary_negotiable' => 'boolean',
         ];
 
         $validator = Validator::make($request->all(),$rules);
@@ -218,7 +231,9 @@ class AccountController extends Controller
             $job->job_type_id  = $request->jobType;
             $job->user_id = Auth::user()->id;
             $job->vacancy = $request->vacancy;
-            $job->salary = $request->salary;
+            $job->salary_min = $request->salary_min;
+            $job->salary_max = $request->salary_max;
+            $job->salary_negotiable = $request->has('salary_negotiable') ? 1 : 0;
             $job->location = $request->location;
             $job->description = $request->description;
             $job->benefits = $request->benefits;
@@ -289,8 +304,10 @@ class AccountController extends Controller
             'vacancy' => 'required|integer',
             'location' => 'required|max:50',
             'description' => 'required',
-            'company_name' => 'required|min:3|max:75',          
-
+            'company_name' => 'required|min:3|max:75',
+            'salary_min' => 'nullable|numeric|min:0',
+            'salary_max' => 'nullable|numeric|min:0',
+            'salary_negotiable' => 'boolean',
         ];
 
         $validator = Validator::make($request->all(),$rules);
@@ -303,7 +320,9 @@ class AccountController extends Controller
             $job->job_type_id  = $request->jobType;
             $job->user_id = Auth::user()->id;
             $job->vacancy = $request->vacancy;
-            $job->salary = $request->salary;
+            $job->salary_min = $request->salary_min;
+            $job->salary_max = $request->salary_max;
+            $job->salary_negotiable = $request->has('salary_negotiable') ? 1 : 0;
             $job->location = $request->location;
             $job->description = $request->description;
             $job->benefits = $request->benefits;
@@ -531,4 +550,188 @@ class AccountController extends Controller
         return redirect()->route('account.login')->with('success','You have successfully changed your password.');
 
     }
+
+    // Employer: View applicants for a job
+    public function jobApplicants(Request $request, $jobId) {
+        $job = Job::where([
+            'id' => $jobId,
+            'user_id' => Auth::user()->id
+        ])->first();
+
+        if ($job == null) {
+            abort(404);
+        }
+
+        $applications = JobApplication::where('job_id', $jobId)
+            ->with(['user', 'job'])
+            ->orderBy('fit_score', 'DESC')  // Sort by fit score (highest first)
+            ->orderBy('applied_date', 'DESC')  // Then by date
+            ->paginate(10);
+
+        return view('front.account.job.applicants', [
+            'job' => $job,
+            'applications' => $applications
+        ]);
+    }
+
+    // Employer: Approve application
+    public function approveApplication(Request $request, $applicationId) {
+        $application = JobApplication::with('job')->find($applicationId);
+
+        if ($application == null) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Application not found'
+            ]);
+        }
+
+        // Check if user owns the job
+        if ($application->job->user_id != Auth::user()->id) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized'
+            ]);
+        }
+
+        $application->status = 'approved';
+        $application->save();
+
+        session()->flash('success', 'Application approved successfully.');
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Application approved successfully'
+        ]);
+    }
+
+    // Employer: Reject application
+    public function rejectApplication(Request $request, $applicationId) {
+        $application = JobApplication::with('job')->find($applicationId);
+
+        if ($application == null) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Application not found'
+            ]);
+        }
+
+        // Check if user owns the job
+        if ($application->job->user_id != Auth::user()->id) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized'
+            ]);
+        }
+
+        $application->status = 'rejected';
+        $application->save();
+
+        session()->flash('success', 'Application rejected successfully.');
+
+        return response()->json([
+            'status' => true,
+            'message' => 'Application rejected successfully'
+        ]);
+    }
+
+    /**
+     * API endpoint to get fraud analysis report for an application
+     */
+    public function getFraudReport($applicationId)
+    {
+        $application = JobApplication::with('job', 'user')->find($applicationId);
+
+        if (!$application) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Application not found'
+            ], 404);
+        }
+
+        // Verify user owns the job
+        if ($application->job->user_id != Auth::user()->id) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized'
+            ], 403);
+        }
+
+        $report = $this->fraudService->getFraudAnalysisReport($application);
+
+        return response()->json([
+            'status' => true,
+            'data' => $report
+        ]);
+    }
+
+    /**
+     * API endpoint to get fit score for an applicant
+     */
+    public function getApplicantFitScore($applicationId)
+    {
+        $application = JobApplication::with('job', 'user')->find($applicationId);
+
+        if (!$application) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Application not found'
+            ], 404);
+        }
+
+        // Verify user owns the job
+        if ($application->job->user_id != Auth::user()->id) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Unauthorized'
+            ], 403);
+        }
+
+        return response()->json([
+            'status' => true,
+            'data' => [
+                'application_id' => $applicationId,
+                'fit_score' => $application->fit_score,
+                'fraud_score' => $application->fraud_score,
+                'user_name' => $application->user->name,
+                'job_title' => $application->job->title,
+            ]
+        ]);
+    }
+
+    /**
+     * Get ranked applicants for a job (sorted by fit score)
+     */
+    public function getRankedApplicants($jobId)
+    {
+        $job = Job::where([
+            'id' => $jobId,
+            'user_id' => Auth::user()->id
+        ])->first();
+
+        if (!$job) {
+            return response()->json([
+                'status' => false,
+                'message' => 'Job not found or unauthorized'
+            ], 404);
+        }
+
+        $rankedApplicants = $this->matchingService->rankApplicantsByFitScore($job);
+
+        return response()->json([
+            'status' => true,
+            'data' => array_map(function($app) {
+                return [
+                    'id' => $app->id,
+                    'user_id' => $app->user_id,
+                    'user_name' => $app->user->name,
+                    'email' => $app->user->email,
+                    'fit_score' => round($app->fit_score, 2),
+                    'fraud_score' => round($app->fraud_score, 2),
+                    'status' => $app->status,
+                    'applied_date' => $app->applied_date,
+                ];
+            }, $rankedApplicants)
+        ]);
+    }
 }
+

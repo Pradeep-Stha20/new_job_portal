@@ -104,12 +104,17 @@
                                                 </p>
                                                 <p>Keywords: {{ $job->keywords }}</p>
                                                 <p>Category: {{ $job->category->name }}</p>
-                                                <p>Experience: {{ $job->experience }}</p>
-                                                @if (!is_null($job->salary))
+                                                <p>Experience: {{ $job->experience }} {{ $job->experience == '10_plus' ? 'Years' : ($job->experience == 1 ? 'Year' : 'Years') }}</p>
+                                                @if ($job->salary_negotiable)
                                                 <p class="mb-0">
-                                                    <span class="fw-bolder"><i class="fa fa-usd"></i></span>
-                                                    <span class="ps-1">{{ $job->salary }}</span>
-                                                </p> 
+                                                    <span class="fw-bolder"><i class="fa fa-money"></i></span>
+                                                    <span class="ps-1">Salary Negotiable</span>
+                                                </p>
+                                                @elseif (!is_null($job->salary_min) || !is_null($job->salary_max))
+                                                <p class="mb-0">
+                                                    <span class="fw-bolder"><i class="fa fa-money"></i></span>
+                                                    <span class="ps-1">NPR {{ number_format($job->salary_min ?? 0) }} - {{ number_format($job->salary_max ?? 0) }}</span>
+                                                </p>
                                                 @endif                                                
                                             </div>
     

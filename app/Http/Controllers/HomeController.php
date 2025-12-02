@@ -11,7 +11,13 @@ class HomeController extends Controller
     // This method will show our home page
     public function index() {
 
-        $categories = Category::where('status',1)->orderBy('name','ASC')->take(8)->get();
+        $categories = Category::where('status',1)
+                        ->orderBy('name','ASC')
+                        ->take(8)
+                        ->withCount(['jobs' => function($query) {
+                            $query->where('status', 1);
+                        }])
+                        ->get();
 
         $newCategories = Category::where('status',1)->orderBy('name','ASC')->get();
 

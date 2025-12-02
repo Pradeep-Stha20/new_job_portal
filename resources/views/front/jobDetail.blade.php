@@ -148,8 +148,10 @@
                                 <li>Vacancy: <span>{{ $job->vacancy }}</span></li>
                                 
 
-                                @if (!empty($job->salary))
-                                <li>Salary: <span>{{ $job->salary }}</span></li>
+                                @if ($job->salary_negotiable)
+                                <li>Salary: <span>Negotiable</span></li>
+                                @elseif (!is_null($job->salary_min) || !is_null($job->salary_max))
+                                <li>Salary: <span>NPR {{ number_format($job->salary_min ?? 0) }} - {{ number_format($job->salary_max ?? 0) }}</span></li>
                                 @endif
 
                                 <li>Location: <span>{{ $job->location }}</span></li>
@@ -189,7 +191,9 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="applicationModalLabel">Apply for this Job</h5>
+                <h5 class="modal-title" id="applicationModalLabel">
+                    <i class="fa fa-briefcase me-2"></i>Apply for this Job
+                </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <form id="applicationForm" enctype="multipart/form-data">
@@ -197,21 +201,38 @@
                 <input type="hidden" id="jobId" name="id" value="">
                 <div class="modal-body">
                     <div class="form-group mb-3">
-                        <label for="coverLetter" class="form-label">Cover Letter <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="coverLetter" name="cover_letter" rows="5" placeholder="Tell us why you are a great fit for this job (minimum 20 characters)" required></textarea>
-                        <small class="text-muted">Minimum 20 characters, maximum 2000 characters</small>
+                        <div class="d-flex justify-content-between align-items-center mb-2">
+                            <label for="coverLetter" class="form-label">Cover Letter <span class="text-danger">*</span></label>
+                            <small class="text-muted">
+                                <span id="charCount">0</span>/2000 characters
+                            </small>
+                        </div>
+                        <textarea class="form-control" id="coverLetter" name="cover_letter" rows="5" placeholder="Tell us why you are a great fit for this job (minimum 20 characters)" required oninput="updateCharCount()"></textarea>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <small class="text-muted">Minimum 20 characters, maximum 2000 characters</small>
+                            <small id="charWarning" class="text-warning" style="display:none;">
+                                <i class="fa fa-exclamation-triangle"></i> Getting close to limit
+                            </small>
+                        </div>
                         <div class="invalid-feedback" id="coverLetterError"></div>
                     </div>
                     <div class="form-group mb-3">
                         <label for="cvFile" class="form-label">Upload Your CV <span class="text-danger">*</span></label>
-                        <input type="file" class="form-control" id="cvFile" name="cv" accept=".pdf,.doc,.docx" required>
-                        <small class="text-muted">Accepted formats: PDF, DOC, DOCX (Max 2MB)</small>
+                        <div class="input-group mb-2">
+                            <input type="file" class="form-control" id="cvFile" name="cv" accept=".pdf,.doc,.docx" required onchange="updateFileInfo()">
+                            <small id="fileInfo" class="ms-2 text-muted"></small>
+                        </div>
+                        <small class="text-muted d-block">
+                            <i class="fa fa-info-circle"></i> Accepted formats: PDF, DOC, DOCX (Max 2MB)
+                        </small>
                         <div class="invalid-feedback" id="cvError"></div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" onclick="submitApplication()">Submit Application</button>
+                    <button type="button" class="btn btn-primary" id="submitBtn" onclick="submitApplication(event)">
+                        <i class="fa fa-paper-plane me-2"></i>Submit Application
+                    </button>
                 </div>
             </form>
         </div>
@@ -228,9 +249,17 @@ function openApplicationModal(jobId) {
     document.getElementById('jobId').value = jobId;
     document.getElementById('applicationForm').reset();
     
-    // Clear previous errors
+    // Clear previous errors and reset display
     document.getElementById('coverLetterError').textContent = '';
     document.getElementById('cvError').textContent = '';
+    document.getElementById('charCount').textContent = '0';
+    document.getElementById('fileInfo').textContent = '';
+    document.getElementById('charWarning').style.display = 'none';
+    
+    // Reset button
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i class="fa fa-paper-plane me-2"></i>Submit Application';
     
     if (!applicationModal) {
         applicationModal = new bootstrap.Modal(document.getElementById('applicationModal'));
@@ -238,10 +267,38 @@ function openApplicationModal(jobId) {
     applicationModal.show();
 }
 
-function submitApplication() {
+function updateCharCount() {
+    const coverLetter = document.getElementById('coverLetter').value;
+    const charCount = coverLetter.length;
+    document.getElementById('charCount').textContent = charCount;
+    
+    // Show warning if getting close to limit
+    if (charCount >= 1800) {
+        document.getElementById('charWarning').style.display = 'inline';
+    } else {
+        document.getElementById('charWarning').style.display = 'none';
+    }
+}
+
+function updateFileInfo() {
+    const fileInput = document.getElementById('cvFile');
+    const fileInfo = document.getElementById('fileInfo');
+    
+    if (fileInput.files.length > 0) {
+        const file = fileInput.files[0];
+        const sizeInMB = (file.size / (1024 * 1024)).toFixed(2);
+        fileInfo.textContent = `✓ ${file.name} (${sizeInMB}MB)`;
+        fileInfo.className = 'ms-2 text-muted text-success';
+    } else {
+        fileInfo.textContent = '';
+    }
+}
+
+function submitApplication(event) {
     const jobId = document.getElementById('jobId').value;
     const coverLetter = document.getElementById('coverLetter').value.trim();
     const cvFile = document.getElementById('cvFile').files[0];
+    console.log('Submitting application for job ID:', jobId);
     
     // Basic validation
     let hasErrors = false;
@@ -250,6 +307,11 @@ function submitApplication() {
     
     if (coverLetter.length < 20) {
         document.getElementById('coverLetterError').textContent = 'Cover letter must be at least 20 characters.';
+        hasErrors = true;
+    }
+    
+    if (coverLetter.length > 2000) {
+        document.getElementById('coverLetterError').textContent = 'Cover letter cannot exceed 2000 characters.';
         hasErrors = true;
     }
     
@@ -276,12 +338,14 @@ function submitApplication() {
         return;
     }
     
-    // Submit form via AJAX
-    const formData = new FormData();
-    formData.append('id', jobId);
-    formData.append('cover_letter', coverLetter);
-    formData.append('cv', cvFile);
-    formData.append('_token', document.querySelector('input[name="_token"]').value);
+    // Show loading state
+    const submitBtn = document.getElementById('submitBtn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Submitting...';
+    
+    // Submit form via AJAX using FormData from the form itself
+    const formData = new FormData(document.getElementById('applicationForm'));
+    console.log('FormData created, submitting...');
     
     $.ajax({
         url: '{{ route("applyJob") }}',
@@ -291,9 +355,14 @@ function submitApplication() {
         processData: false,
         dataType: 'json',
         success: function(response) {
+            console.log('Response:', response);
             if (response.status) {
                 applicationModal.hide();
-                window.location.href = "{{ url()->current() }}";
+                showSuccessNotification('Application Submitted Successfully!', 'Your application has been submitted. The employer will review it shortly.');
+                
+                setTimeout(function() {
+                    window.location.href = "{{ url()->current() }}";
+                }, 2000);
             } else {
                 // Show validation errors
                 if (response.errors) {
@@ -304,10 +373,33 @@ function submitApplication() {
                         document.getElementById('cvError').textContent = response.errors.cv[0];
                     }
                 }
+                if (response.message) {
+                    showErrorNotification('Application Error', response.message);
+                }
+                
+                // Reset button
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fa fa-paper-plane me-2"></i>Submit Application';
             }
         },
-        error: function(xhr) {
-            alert('An error occurred. Please try again.');
+        error: function(xhr, status, error) {
+            console.error('AJAX Error:', status, error);
+            console.error('Response:', xhr.responseText);
+            
+            let errorMessage = 'Please try again.';
+            if (xhr.responseJSON?.message) {
+                errorMessage = xhr.responseJSON.message;
+            } else if (xhr.status === 401) {
+                errorMessage = 'Please login to apply for jobs.';
+            } else if (xhr.status === 422) {
+                errorMessage = 'Validation failed. Please check your inputs.';
+            }
+            
+            showErrorNotification('Submission Error', errorMessage);
+            
+            // Reset button
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="fa fa-paper-plane me-2"></i>Submit Application';
         }
     });
 }
@@ -323,5 +415,84 @@ function saveJob(id){
         } 
     });
 }
+
+// Notification Functions
+function showSuccessNotification(title, message) {
+    const notificationHtml = `
+        <div class="notification-container notification-success animated slideInDown">
+            <div class="notification-header">
+                <i class="fa fa-check-circle"></i>
+                <h5>${title}</h5>
+                <button type="button" class="btn-close" onclick="closeNotification(this)"></button>
+            </div>
+            <div class="notification-body">
+                <p>${message}</p>
+            </div>
+            <div class="notification-progress"></div>
+        </div>
+    `;
+    
+    $('body').append(notificationHtml);
+    
+    // Auto-close after 4 seconds
+    setTimeout(function() {
+        closeNotification($('.notification-container:last').find('.btn-close'));
+    }, 4000);
+}
+
+function showErrorNotification(title, message) {
+    const notificationHtml = `
+        <div class="notification-container notification-error animated slideInDown">
+            <div class="notification-header">
+                <i class="fa fa-exclamation-circle"></i>
+                <h5>${title}</h5>
+                <button type="button" class="btn-close" onclick="closeNotification(this)"></button>
+            </div>
+            <div class="notification-body">
+                <p>${message}</p>
+            </div>
+            <div class="notification-progress"></div>
+        </div>
+    `;
+    
+    $('body').append(notificationHtml);
+    
+    // Auto-close after 5 seconds
+    setTimeout(function() {
+        closeNotification($('.notification-container:last').find('.btn-close'));
+    }, 5000);
+}
+
+function showWarningNotification(title, message) {
+    const notificationHtml = `
+        <div class="notification-container notification-warning animated slideInDown">
+            <div class="notification-header">
+                <i class="fa fa-exclamation-triangle"></i>
+                <h5>${title}</h5>
+                <button type="button" class="btn-close" onclick="closeNotification(this)"></button>
+            </div>
+            <div class="notification-body">
+                <p>${message}</p>
+            </div>
+            <div class="notification-progress"></div>
+        </div>
+    `;
+    
+    $('body').append(notificationHtml);
+    
+    // Auto-close after 4 seconds
+    setTimeout(function() {
+        closeNotification($('.notification-container:last').find('.btn-close'));
+    }, 4000);
+}
+
+function closeNotification(btn) {
+    const notification = $(btn).closest('.notification-container');
+    notification.removeClass('slideInDown').addClass('slideOutUp');
+    setTimeout(function() {
+        notification.remove();
+    }, 500);
+}
+
 </script>
 @endsection

@@ -58,7 +58,7 @@
             <div class="col-lg-4 col-xl-3 col-md-6">
                 <div class="single_catagory">
                     <a href="{{ route('jobs').'?category='.$category->id }}"><h4 class="pb-2">{{ $category->name }}</h4></a>
-                    <p class="mb-0"> <span>0</span> Available position</p>
+                    <p class="mb-0"> <span>{{ $category->jobs_count }}</span> Available {{ $category->jobs_count == 1 ? 'position' : 'positions' }}</p>
                 </div>
             </div> 
             @endforeach                
@@ -140,10 +140,15 @@
                                                 <span class="fw-bolder"><i class="fa fa-clock-o"></i></span>
                                                 <span class="ps-1">{{ $latestJob->jobType->name }}</span>
                                             </p>
-                                            @if (!is_null($latestJob->salary))
+                                            @if ($latestJob->salary_negotiable)
                                             <p class="mb-0">
-                                                <span class="fw-bolder"><i class="fa fa-usd"></i></span>
-                                                <span class="ps-1">{{ $latestJob->salary }}</span>
+                                                <span class="fw-bolder"><i class="fa fa-money"></i></span>
+                                                <span class="ps-1">Salary Negotiable</span>
+                                            </p>
+                                            @elseif (!is_null($latestJob->salary_min) || !is_null($latestJob->salary_max))
+                                            <p class="mb-0">
+                                                <span class="fw-bolder"><i class="fa fa-money"></i></span>
+                                                <span class="ps-1">NPR {{ number_format($latestJob->salary_min ?? 0) }} - {{ number_format($latestJob->salary_max ?? 0) }}</span>
                                             </p>
                                             @endif                                            
                                         </div>
