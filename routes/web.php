@@ -24,6 +24,11 @@ use Illuminate\Support\Facades\Route;
 //     return view('welcome');
 // });
 
+// Notification test page (testing only - remove in production)
+Route::get('/test-notifications', function() {
+    return view('notification-test');
+})->name('test.notifications');
+
 Route::get('/',[HomeController::class,'index'])->name('home');
 Route::get('/jobs',[JobsController::class,'index'])->name('jobs');
 Route::get('/jobs/detail/{id}',[JobsController::class,'detail'])->name('jobDetail');
